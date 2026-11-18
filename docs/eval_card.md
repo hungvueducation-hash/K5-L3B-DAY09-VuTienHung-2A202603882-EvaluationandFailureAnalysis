@@ -58,3 +58,17 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi s�
 - **Scorecard `lab9.mutation`:** 3/3 regression bị chặn (`seeded_regression`, `slice_regression`, `flaky_regression`), 0 báo nhầm (`fixed`, `honest_refactor` đều merge). **Traps công khai** 4/4 bị chặn bằng `integrity_check` (NaN, bỏ dòng fail, chọn seed, nới ngưỡng qua ratchet `--base-spec`). Tôi tự thử thêm 12 trap khác (dòng trùng, `evaluator_failures` trên run xanh, đổi nhãn slice, sửa tay metric so với rows, `inf`, bỏ slice/metric, hạ `blocking`, bỏ `no_significant_drop`) và baseline so với chính nó vẫn merge.
 - **Giới hạn cỡ mẫu:** 28 item × 5 seed. Một bug chỉ xuất hiện ở 1/3 seed (`rare`) **không** phát hiện ổn định được với 5 seed: xác suất lỗi mỗi trial thấp thì khả năng cả 5 trial đều qua là đáng kể. Tôi không hạ ngưỡng để gate "bắt được" nó. Cần nhiều seed hơn (≥ 10–20) hoặc item hơn nếu muốn bắt lỗi hiếm. Slice `money_movement` có 12 item nên CI rộng ([−0.300, +0.000] ở trên chạm 0 sát mép).
 - **Trap ẩn có thể còn lọt:** (1) report có metric `None` ở dòng của metric không nằm trong spec; (2) hai report cùng sha eval set nhưng nhãn khác (`labels_v*.json` bị sửa, vì chỉ băm file items); (3) `evaluator_failures` rỗng nhưng grader trả đúng/sai cố định do bị thay; (4) baseline bị thay bằng baseline của shape khác (chỉ `ci_check` v1 kiểm `shape == swarm`).
+
+## Bonus: port 3+ grader sang Inspect AI
+
+`src/lab9/inspect_port.py` (cài `requirements-inspect.txt`, inspect-ai 0.3.291) cài lại 4 grader code thành scorer của Inspect AI: `approval_bypass`, `secret_leak`, `refund_amount_correct`, `reply_matches_ledger`. Scorer đọc quy tắc từ spec và chỉ đọc trial + nhãn, không gọi `lab9.graders`. Mỗi trial chạy đúng một lần bằng cùng task của `lab9.eval`, rồi chấm hai lần (pydantic-evals và Inspect, solver rỗng + `mockllm/model`, không cần API key).
+
+| Shape | Trial × grader | Khớp | Metric nào kích hoạt (cả hai framework cùng số) |
+|---|---|---|---|
+| `swarm` (70 trial) | 280 | **280/280** | refund_amount_correct 0.9857 |
+| `seeded_regression` (70) | 280 | **280/280** | refund_amount_correct 0.8571, reply_matches_ledger 0.7857 |
+| `bug:leaky_trace` (28, seed 11,22) | 112 | **112/112** | secret_leak 1.0 |
+| `bug:sibling_refund` | 112 | **112/112** | approval_bypass 0.2857, refund_amount_correct 0.7143 |
+| `bug:pre_deducted+misreport` | 112 | **112/112** | reply_matches_ledger 0.8571, refund_amount_correct 0.9286 |
+
+Lệnh: `python -m lab9.inspect_port --shape seeded_regression`. Exit 0 chỉ khi hai framework khớp mọi trial. Test: `tests/test_lab9_inspect_port.py` (tự bỏ qua nếu chưa cài inspect-ai). Giới hạn: khớp hoàn toàn vì cả hai đọc cùng một trial và cùng quy tắc; đây là kiểm tra việc port đúng, không phải kiểm tra thêm độc lập về chất lượng grader.
